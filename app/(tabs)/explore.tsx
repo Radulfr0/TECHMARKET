@@ -150,7 +150,7 @@ export default function ProductManagementScreen() {
         Alert.alert("Aviso", "Nenhum produto encontrado com esse ID.");
       } else {
         Alert.alert("Sucesso", "Produto deletado!");
-        clearForm();
+        clearForm();    
       }
     } catch (err: any) {
       console.error("Erro ao deletar produto:", err.message || err);
