@@ -1,98 +1,211 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Stack, router } from "expo-router";
+import React, { useState } from "react";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View, } from "react-native";
+// Importação do cliente Supabase
+import { supabase } from "@/lib/supabase";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function AccessScreen() {
+  // Estado para o Nome de Usuário (Nome)
+  const [adminUsername, setAdminUsername] = useState("");
+  const [senha, setSenha] = useState("");
+  const [showAdminInput, setShowAdminInput] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-export default function HomeScreen() {
+  const handleClientAccess = () => {
+    router.replace("/products");
+  };
+
+  // Função assíncrona para realizar o login consultando a tabela de credenciais
+  const handleAdminLogin = async () => {
+    if (!adminUsername || !senha) {
+      Alert.alert("Erro", "Por favor, preencha o Nome de Usuário e a Senha.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+     
+      const { data, error } = await supabase
+        .from("usersadmin") // <--- CERTIFIQUE-SE DE QUE ESTE NOME DE TABELA ESTÁ CORRETO!
+        .select("name")
+        .eq("name", adminUsername) //
+        .eq("senha", senha) // Consulta a senha em texto simples
+        .maybeSingle(); // Espera 0 ou 1 resultado
+
+      if (error) throw error;
+
+      if (data) {
+        // Sucesso: Credenciais encontradas
+        router.replace("../explore");
+      } else {
+        // Falha: Nenhum registro encontrado
+        Alert.alert("Erro de Acesso", "Nome de usuário ou senha incorretos.");
+      }
+    } catch (err: any) {
+      console.error("Erro de Consulta de Login:", err.message);
+      Alert.alert("Erro", "Não foi possível conectar ao banco de dados.");
+    } finally {
+      setLoading(false);
+      setSenha("");
+    }
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={styles.container}>
+      {/* Configuração do Header */}
+      <Stack.Screen options={{ title: "Bem-vindo(a)", headerShown: false }} />
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      {/* Logo/Título da Loja */}
+      <View style={styles.headerContainer}>
+        <Text style={styles.title}>TECHMARKET</Text>
+        <Text style={styles.subtitle}>Seu E-commerce Simplificado</Text>
+      </View>
+
+      {/* --- Opções de Navegação --- */}
+
+      {/* Opção 1: Entrar como Cliente */}
+      <Pressable
+        onPress={handleClientAccess}
+        style={[styles.button, styles.clientButton]}
+        disabled={loading}
+      >
+        <Text style={styles.buttonText}>🛍️ Entrar como Cliente</Text>
+      </Pressable>
+
+      {/* Opção 2: Área Administrativa (Toggle/Input) */}
+      <Pressable
+        onPress={() => setShowAdminInput(!showAdminInput)}
+        style={styles.adminToggle}
+        disabled={loading}
+      >
+        <Text style={styles.adminToggleText}>⚙️ Área Administrativa</Text>
+      </Pressable>
+
+      {/* Formulário de Login Admin */}
+      {showAdminInput && (
+        <View style={styles.adminContainer}>
+          {/* Input para o Nome de Usuário */}
+          <TextInput
+            value={adminUsername}
+            onChangeText={setAdminUsername}
+            placeholder="Nome de Usuário"
+            style={styles.input}
+            autoCapitalize="none"
+            keyboardType="default"
+            editable={!loading}
+          />
+
+          {/* Input para a Senha */}
+          <TextInput
+            value={senha}
+            onChangeText={setSenha}
+            placeholder="Senha de Acesso"
+            secureTextEntry
+            style={styles.input}
+            editable={!loading}
+            onSubmitEditing={handleAdminLogin}
+          />
+          <Pressable
+            onPress={handleAdminLogin}
+            style={[styles.button, styles.adminButton]}
+            disabled={loading}
+          >
+            {/* Renderiza o spinner ou o texto do botão */}
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>Acessar</Text>
+            )}
+          </Pressable>
+        </View>
+      )}
+    </View>
   );
 }
 
+// --- Estilos (Sem alterações) ---
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    padding: 30,
+    backgroundColor: "#f5f5f5",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  headerContainer: {
+    marginBottom: 50,
+    alignItems: "center",
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  title: {
+    fontSize: 38,
+    fontWeight: "bold",
+    color: "#2a9d8f",
   },
+  subtitle: {
+    fontSize: 18,
+    color: "#6c757d",
+    marginTop: 5,
+  },
+  button: {
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 15,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3, // Sombra para Android
+  },
+
+  clientButton: {
+        backgroundColor: '#264653', // Cor escura (anteriormente do admin)
+    },
+    
+    buttonText: {
+        color: 'white',
+        fontSize: 18,
+        fontWeight: '600',
+    },
+    adminToggle: {
+        marginTop: 20,
+        marginBottom: 10,
+        padding: 10,
+    },
+    adminToggleText: {
+        fontSize: 16,
+        color: '#264653', 
+        fontWeight: '500',
+        textDecorationLine: 'underline',
+    },
+    adminContainer: {
+        width: '100%',
+        alignItems: 'center',
+        marginTop: 10,
+        padding: 20,
+        backgroundColor: '#ffffff',
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#ccc',
+    },
+    input: {
+        width: '100%',
+        padding: 15,
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        marginBottom: 15,
+        fontSize: 16,
+        textAlign: 'center',
+        backgroundColor: '#f9f9f9',
+    },
+    
+    // Botão Admin (AGORA MAIS CLARO)
+    adminButton: {
+        backgroundColor: '#e9c46a', // Cor clara (anteriormente do cliente)
+        marginBottom: 0,
+    },
 });

@@ -1,112 +1,339 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    Keyboard,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
+// Importamos novamente nossa instância do Supabase.
+import { router } from "expo-router";
+import { supabase } from "../../lib/supabase";
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+export default function ProductManagementScreen() {
+  // Estados para cada campo do formulário. Cada um controla um TextInput.
+  const [productId, setProductId] = useState("");
+  const [title, setTitle] = useState("");
+  const [price, setPrice] = useState("");
+  const [description, setDescription] = useState("");
+  const [image, setImage] = useState("");
+  const [loading, setLoading] = useState(false);
 
-export default function TabTwoScreen() {
+  // Função utilitária para limpar todos os campos do formulário e fechar o teclado.
+  const clearForm = () => {
+    setProductId("");
+    setTitle("");
+    setPrice("");
+    setDescription("");
+    setImage("");
+    Keyboard.dismiss();
+  };
+  // Função para ADICIONAR um novo produto. Corresponde ao "INSERT".
+  const handleAddProduct = async () => {
+    if (!title || !price || !description || !image) {
+      Alert.alert("Atenção", "Preencha todos os campos para adicionar um produto.");
+      return;
+    }
+
+    const priceNum = parseFloat(price);
+    if (!isFinite(priceNum)) {
+      Alert.alert("Atenção", "Preço inválido.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.from("products").insert([
+        { title, price: priceNum, description, category: "app-add", image },
+      ]).select();
+
+      if (error) throw error;
+
+      Alert.alert("Sucesso", "Produto adicionado!", [{ text: "OK" }]);
+      clearForm();
+    } catch (err: any) {
+      console.error("Erro ao adicionar produto:", err.message || err);
+      if ((err.message || "").includes("Could not find the table")) {
+        Alert.alert(
+          "Erro",
+          "Tabela 'products' não encontrada no Supabase. Crie a tabela ou verifique o nome da tabela no código."
+        );
+      } else if ((err.message || "").includes("permission")) {
+        Alert.alert(
+          "Permissão negada",
+          "Verifique as políticas RLS no Supabase ou as chaves usadas no cliente."
+        );
+      } else {
+        Alert.alert("Erro", err.message || String(err));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateProduct = async () => {
+    const updateObject: {
+      title?: string;
+      price?: number;
+      description?: string;
+      image?: string;
+    } = {};
+    if (title) updateObject.title = title;
+    if (price) updateObject.price = parseFloat(price);
+    if (description) updateObject.description = description;
+    if (image) updateObject.image = image;
+    if (Object.keys(updateObject).length === 0) {
+      Alert.alert("Atenção", "Preencha pelo menos um campo para atualizar.");
+      return;
+    }
+
+    const idNum = parseInt(productId, 10);
+    if (!idNum) {
+      Alert.alert("Atenção", "ID do produto inválido para atualização.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("products")
+        .update(updateObject)
+        .eq("id", idNum)
+        .select();
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        Alert.alert("Aviso", "Nenhum produto encontrado com esse ID.");
+      } else {
+        Alert.alert("Sucesso", "Produto atualizado!");
+        clearForm();
+      }
+    } catch (err: any) {
+      console.error("Erro ao atualizar produto:", err.message || err);
+      if ((err.message || "").includes("Could not find the table")) {
+        Alert.alert(
+          "Erro",
+          "Tabela 'products' não encontrada no Supabase. Crie a tabela ou verifique o nome da tabela no código."
+        );
+      } else {
+        Alert.alert("Erro", err.message || String(err));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Função para DELETAR um produto. Corresponde ao "DELETE".
+  const handleDeleteProduct = async () => {
+    const idNum = parseInt(productId, 10);
+    if (!idNum) {
+      Alert.alert("Atenção", "Insira um ID válido do produto para deletar.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", idNum)
+        .select();
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        Alert.alert("Aviso", "Nenhum produto encontrado com esse ID.");
+      } else {
+        Alert.alert("Sucesso", "Produto deletado!");
+        clearForm();
+      }
+    } catch (err: any) {
+      console.error("Erro ao deletar produto:", err.message || err);
+      if ((err.message || "").includes("Could not find the table")) {
+        Alert.alert(
+          "Erro",
+          "Tabela 'products' não encontrada no Supabase. Crie a tabela ou verifique o nome da tabela no código."
+        );
+      } else {
+        Alert.alert("Erro", err.message || String(err));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  function handleBack() {
+    router.navigate("/");
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
+    <View style={styles.container}>
+      <View style={styles.headerContainer}>
+        <Text style={styles.title}>TECHMARKET</Text>
+        <Text style={styles.subtitle}>Seu E-commerce Simplificado</Text>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+        <Text style={styles.header}>Gerenciar Produtos</Text>
+        {/* Cada TextInput está ligado a uma variável de estado e a sua função de atualização. */}
+        <TextInput
+          style={styles.input}
+          placeholder="ID do Produto (para Editar/Deletar)"
+          value={productId}
+          onChangeText={setProductId}
+          keyboardType="numeric"
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
+        <TextInput
+          style={styles.input}
+          placeholder="Título do Produto"
+          value={title}
+          onChangeText={setTitle}
         />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+        <TextInput
+          style={styles.input}
+          placeholder="Preco"
+          value={price}
+          onChangeText={setPrice}
+          keyboardType="numeric"
+        />
+        <TextInput
+          style={[styles.input, { height: 100, textAlignVertical: "top" }]}
+          placeholder="Descricão"
+          value={description}
+          onChangeText={setDescription}
+          multiline
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="URL da Imagem do Produto"
+          value={image}
+          onChangeText={setImage}
+          keyboardType="url"
+          autoCapitalize="none"
+        />
+        <View style={styles.buttonContainer}>
+          {/* Cada botão chama a função de manipulação de dados correspondente. */}
+          <Pressable
+            onPress={handleAddProduct}
+            style={[styles.button, styles.clientButton, loading && styles.buttonDisabled]}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>Adicionar Produto (INSERT)</Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={handleUpdateProduct}
+            style={[styles.button, styles.adminButton, loading && styles.buttonDisabled]}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>Atualizar Produto (UPDATE)</Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={handleDeleteProduct}
+            style={[styles.button, styles.dangerButton, loading && styles.buttonDisabled]}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>Deletar Produto (DELETE)</Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={clearForm}
+            style={[styles.button, styles.clearButton, loading && styles.buttonDisabled]}
+            disabled={loading}
+          >
+            <Text style={[styles.buttonText, { color: '#333' }]}>Limpar Formulário</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: { flex: 1, backgroundColor: "#f5f5f5" },
+  form: { padding: 20, flexGrow: 1 },
+  headerContainer: {
+    marginTop: 30,
+    marginBottom: 10,
+    alignItems: 'center',
   },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
+  title: {
+    fontSize: 34,
+    fontWeight: 'bold',
+    color: '#2a9d8f',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#6c757d',
+    marginTop: 4,
+  },
+  header: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "center",
+    color: '#264653'
+  },
+  input: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 5,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  buttonContainer: { marginTop: 10, gap: 10 },
+  button: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  clientButton: {
+    backgroundColor: '#264653',
+  },
+  adminButton: {
+    backgroundColor: '#e9c46a',
+  },
+  dangerButton: {
+    backgroundColor: '#dc3545',
+  },
+  clearButton: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });
